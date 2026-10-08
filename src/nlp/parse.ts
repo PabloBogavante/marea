@@ -68,6 +68,7 @@ function cleanTitle(t: string, kind: EventKind, original: string): string {
     .replace(/del mati|de la tarda|del vespre|de la nit|de la matinada|durant \S+ \S+/g, ' ')
     .replace(/[,]/g, ' ')
     .replace(/\s+/g, ' ').trim()
+    .replace(/^(i|o)\s+/, '')
     .replace(/^(recorda'?m( que)?|posa'?m|apunta'?m?|afegeix|crea|tinc|he d'|haig d'|vull|cada|els)\s*/, '')
     .replace(/^(una?|el|la|l')\s+/, '')
     .replace(/^(anar al|anar a la|anar a|anar)\s+/, '')
