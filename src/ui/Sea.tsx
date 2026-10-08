@@ -31,29 +31,58 @@ function triaVideo(f: Fase, t?: Temps): string {
   return t?.cel === 'nuvol' ? VIDEOS.nuvol : VIDEOS.dia;
 }
 
-/** Dos vídeos superposats: el nou entra amb un fos de 2,5 s sobre l'anterior. */
+/**
+ * Vídeo de fons creat directament a l'HTML (no via React) perquè iOS l'accepti com a vídeo
+ * silenciós en bucle: els atributs muted/playsinline/autoplay s'han de posar ABANS del src.
+ * Si iOS el frena igualment (mode d'estalvi), arrenca al primer toc a la pantalla.
+ * El nou vídeo entra amb un fos de 2,5 s sobre l'anterior.
+ */
+let estilInjectat = false;
+function injectaEstil() {
+  if (estilInjectat || typeof document === 'undefined') return;
+  estilInjectat = true;
+  const st = document.createElement('style');
+  st.textContent = `
+    video.marea-bg::-webkit-media-controls,
+    video.marea-bg::-webkit-media-controls-panel,
+    video.marea-bg::-webkit-media-controls-start-playback-button,
+    video.marea-bg::-webkit-media-controls-overlay-play-button { display: none !important; -webkit-appearance: none; opacity: 0 !important; }
+    video.marea-bg { pointer-events: none; }
+  `;
+  document.head.appendChild(st);
+  const desperta = () => document.querySelectorAll<HTMLVideoElement>('video.marea-bg').forEach((v) => { if (v.paused) v.play().catch(() => {}); });
+  ['touchstart', 'touchend', 'click', 'scroll'].forEach((e) => document.addEventListener(e, desperta, { passive: true, capture: true }));
+  document.addEventListener('visibilitychange', () => { if (!document.hidden) desperta(); });
+  setInterval(desperta, 4000);
+}
+
 function VideoMar({ src }: { src: string }) {
-  const [capes, setCapes] = useState<{ src: string; visible: boolean }[]>([{ src, visible: false }]);
+  const caixa = useRef<any>(null);
   useEffect(() => {
-    setCapes((c) => (c[c.length - 1]?.src === src ? c : [...c.slice(-1), { src, visible: false }]));
+    const host: HTMLElement | null = caixa.current;
+    if (!host) return;
+    injectaEstil();
+    if ((host.lastElementChild as HTMLVideoElement | null)?.dataset.src === src) return;
+    const v = document.createElement('video');
+    v.className = 'marea-bg';
+    v.muted = true; v.defaultMuted = true; v.loop = true; v.autoplay = true; v.playsInline = true;
+    v.setAttribute('muted', ''); v.setAttribute('playsinline', ''); v.setAttribute('webkit-playsinline', '');
+    v.setAttribute('autoplay', ''); v.setAttribute('loop', ''); v.setAttribute('preload', 'auto');
+    v.setAttribute('disablepictureinpicture', ''); v.setAttribute('disableremoteplayback', '');
+    v.dataset.src = src;
+    Object.assign(v.style, { position: 'absolute', inset: '0', width: '100%', height: '100%', objectFit: 'cover', opacity: '0', transition: 'opacity 2.5s ease' });
+    v.src = src;
+    const mostra = () => {
+      v.style.opacity = '1';
+      // treu els vídeos antics quan el nou ja és visible
+      setTimeout(() => { while (host.firstElementChild && host.firstElementChild !== v) host.removeChild(host.firstElementChild); }, 2800);
+    };
+    v.addEventListener('playing', mostra, { once: true });
+    v.addEventListener('loadeddata', () => v.play().catch(() => {}), { once: true });
+    host.appendChild(v);
+    v.play().catch(() => {});
   }, [src]);
-  return (
-    <View style={StyleSheet.absoluteFill}>
-      {capes.map((c, i) =>
-        createElement('video', {
-          key: c.src, src: c.src, autoPlay: true, muted: true, loop: true, playsInline: true, preload: 'auto',
-          'webkit-playsinline': 'true',
-          // iOS només reprodueix automàticament si l'atribut «muted» existeix de veritat a l'HTML
-          ref: (el: any) => { if (el && !el.dataset.ok) { el.dataset.ok = '1'; el.muted = true; el.setAttribute('muted', ''); el.setAttribute('playsinline', ''); el.play?.().catch(() => {}); } },
-          onLoadedData: () => setCapes((cs) => cs.map((x) => (x.src === c.src ? { ...x, visible: true } : x))),
-          style: {
-            position: 'absolute', inset: 0, width: '100%', height: '100%', objectFit: 'cover',
-            opacity: c.visible ? 1 : 0, transition: 'opacity 2.5s ease', zIndex: i,
-          },
-        }),
-      )}
-    </View>
-  );
+  return createElement('div', { ref: caixa, style: { position: 'absolute', inset: 0, overflow: 'hidden' } });
 }
 import type { Temps } from './weather';
 
