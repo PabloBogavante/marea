@@ -1,0 +1,26 @@
+{
+  "expo": {
+    "name": "Marea",
+    "slug": "marea-app",
+    "version": "0.1.0",
+    "orientation": "portrait",
+    "userInterfaceStyle": "dark",
+    "ios": {
+      "bundleIdentifier": "app.marea.personal",
+      "supportsTablet": false
+    },
+    "web": {
+      "name": "Marea",
+      "shortName": "Marea",
+      "lang": "ca",
+      "themeColor": "#0b2233",
+      "backgroundColor": "#0b2233",
+      "display": "standalone",
+      "bundler": "metro",
+      "output": "single"
+    },
+    "experiments": {
+      "baseUrl": "/marea"
+    }
+  }
+}
