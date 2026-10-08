@@ -5,7 +5,7 @@ import { dataLlarga, hora, salutacio } from '../ui/ca';
 import { C, Glass, Label, sans, serif, T } from '../ui/kit';
 import { descripcio, icona, type Temps } from '../ui/weather';
 
-export function Avui({ db, user, temps }: { db: DB; user: UserId; temps?: Temps }) {
+export function Avui({ db, user, temps, onObre }: { db: DB; user: UserId; temps?: Temps; onObre: (s: string) => void }) {
   const now = new Date();
   const nom = user === 'josep' ? 'Josep' : 'Papà';
   const avui = eventsOn(now, user, db.events);
@@ -14,6 +14,13 @@ export function Avui({ db, user, temps }: { db: DB; user: UserId; temps?: Temps 
   const properDema = !proper ? eventsOn(dema, user, db.events)[0] : undefined;
   const tasques = db.tasks.filter((t) => t.owner === user && !t.done && !t.archived && t.list === 'feina').slice(0, 3);
   const esport = avui.filter((e) => e.kind === 'esport');
+  const iso = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`;
+  const amagat = (x: string) => db.profiles[user].hiddenSections.includes(x);
+  const kcal = db.meals.filter((m) => m.owner === user && m.date === iso).flatMap((m) => m.items).reduce((a, i) => a + i.n.kcal, 0);
+  const pesAvui = db.weights.find((w) => w.owner === user && w.at.slice(0, 10) === now.toISOString().slice(0, 10));
+  const ootdAvui = db.outfits.some((o) => o.owner === user && o.date === now.toISOString().slice(0, 10));
+  const postals = db.postals.filter((p) => p.to === user && !p.llegida).length;
+  const superPendent = db.superItems.filter((i) => i.estat === 'pendent').length;
 
   return (
     <View style={{ gap: 14 }}>
@@ -65,6 +72,31 @@ export function Avui({ db, user, temps }: { db: DB; user: UserId; temps?: Temps 
             </T>
           ))}
         </Glass>
+      )}
+
+      {postals > 0 && (
+        <Pressable onPress={() => onObre('papa')}><Glass><T>💌 Has rebut {postals === 1 ? 'una postal' : `${postals} postals`}.</T></Glass></Pressable>
+      )}
+
+      {user === 'papa' && superPendent > 0 && !amagat('super') && (
+        <Pressable onPress={() => onObre('super')}><Glass><Label>JOSEP SÚPER</Label><T>{superPendent} {superPendent === 1 ? 'producte' : 'productes'} per comprar</T></Glass></Pressable>
+      )}
+
+      <View style={{ flexDirection: 'row', gap: 12 }}>
+        {!amagat('dieta') && (
+          <Pressable style={{ flex: 1 }} onPress={() => onObre('dieta')}>
+            <Glass><Label>ALIMENTACIÓ</Label><T>{kcal ? `≈${kcal.toLocaleString('ca-ES')} kcal` : 'Res encara'}</T></Glass>
+          </Pressable>
+        )}
+        {!amagat('ootd') && (
+          <Pressable style={{ flex: 1 }} onPress={() => onObre('ootd')}>
+            <Glass><Label>{user === 'josep' ? 'VESTUARI' : 'VESTIDOR'}</Label><T>{ootdAvui ? 'Fet ✓' : '📸 Afegir'}</T></Glass>
+          </Pressable>
+        )}
+      </View>
+
+      {!amagat('pes') && pesAvui && (
+        <Pressable onPress={() => onObre('pes')}><Glass><Label>PES</Label><T>{pesAvui.kg.toFixed(1)} kg avui</T></Glass></Pressable>
       )}
 
       {!proper && !properDema && tasques.length === 0 && (
