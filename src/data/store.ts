@@ -1,7 +1,7 @@
 // Capa de dades. Ara: emmagatzematge local. Fase següent: Supabase amb la mateixa interfície.
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useSyncExternalStore } from 'react';
-import type { CalendarEvent, DB, Task, UserId } from './types';
+import type { CalendarEvent, DB, Profile, Task, UserId } from './types';
 
 const KEY = 'marea.db.v1';
 
@@ -13,6 +13,12 @@ const empty: DB = {
   },
   events: [],
   tasks: [],
+  meals: [],
+  weights: [],
+  superItems: [],
+  outfits: [],
+  postals: [],
+  propostes: [],
 };
 
 let db: DB = empty;
@@ -24,7 +30,7 @@ export const uid = () => Math.random().toString(36).slice(2) + Date.now().toStri
 export async function loadDB() {
   try {
     const raw = await AsyncStorage.getItem(KEY);
-    if (raw) db = { ...empty, ...JSON.parse(raw) };
+    if (raw) { const d = JSON.parse(raw); db = { ...empty, ...d, profiles: { ...empty.profiles, ...d.profiles } }; }
   } catch {}
   loaded = true;
   emit();
@@ -65,6 +71,23 @@ export const duplicateTask = (id: string) => {
   const t = db.tasks.find((x) => x.id === id);
   if (t) commit({ ...db, tasks: [{ ...t, id: uid(), done: false, createdAt: new Date().toISOString() }, ...db.tasks] });
 };
+
+// ── Col·leccions genèriques (àpats, pesos, súper, OOTD, postals, propostes) ──
+type Col = 'meals' | 'weights' | 'superItems' | 'outfits' | 'postals' | 'propostes';
+export function add<K extends Col>(col: K, item: Omit<DB[K][number], 'id'>) {
+  commit({ ...db, [col]: [{ ...(item as any), id: uid() }, ...(db[col] as any[])] } as DB);
+}
+export function update<K extends Col>(col: K, id: string, patch: Partial<DB[K][number]>) {
+  commit({ ...db, [col]: (db[col] as any[]).map((x) => (x.id === id ? { ...x, ...patch } : x)) } as DB);
+}
+export function remove<K extends Col>(col: K, id: string) {
+  commit({ ...db, [col]: (db[col] as any[]).filter((x) => x.id !== id) } as DB);
+}
+export function clear(col: Col | 'events' | 'tasks', owner?: UserId) {
+  commit({ ...db, [col]: owner ? (db[col] as any[]).filter((x) => (x.owner ?? x.from) !== owner) : [] } as DB);
+}
+export const updateProfile = (id: UserId, patch: Partial<Profile>) =>
+  commit({ ...db, profiles: { ...db.profiles, [id]: { ...db.profiles[id], ...patch } } });
 
 // ── Consultes ──
 const sameDay = (a: Date, b: Date) =>
