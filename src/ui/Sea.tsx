@@ -1,9 +1,60 @@
 // Fons marí ambiental: cel + horitzó + mar amb onades lentes.
 // Canvia segons l'hora (madrugada, alba, dia, capvespre, nit) i el temps (pluja, vent, núvols).
-// Més endavant es podrà substituir per vídeos reals en bucle mantenint aquesta mateixa lògica.
+// Al web (iPhone) es mostren vídeos reals del mar (Pexels, llicència lliure) amb fos suau entre escenes.
+// El degradat queda a sota com a reserva mentre carrega o si el mòbil bloqueja el vídeo (mode estalvi).
 import { LinearGradient } from 'expo-linear-gradient';
-import { useEffect, useMemo, useRef, useState } from 'react';
-import { Animated, Dimensions, Easing, StyleSheet, View } from 'react-native';
+import { createElement, useEffect, useMemo, useRef, useState } from 'react';
+import { Animated, Dimensions, Easing, Platform, StyleSheet, View } from 'react-native';
+
+const V = 'https://videos.pexels.com/video-files/';
+const VIDEOS = {
+  dia: V + '30143154/12926122_960_540_30fps.mp4',
+  nuvol: V + '31584683/13459585_960_540_30fps.mp4',
+  alba: V + '31292289/13361163_960_540_30fps.mp4',
+  capvespre: V + '33251147/14166153_960_540_24fps.mp4',
+  nit: V + '32597068/13899852_960_540_24fps.mp4',
+  madrugada: V + '34743427/14728605_540_960_30fps.mp4',
+  boira: V + '31154555/13311270_540_960_30fps.mp4',
+  pluja: V + '34270428/14520083_960_540_30fps.mp4',
+  tempesta: V + '30884729/13205920_960_540_30fps.mp4',
+};
+
+function triaVideo(f: Fase, t?: Temps): string {
+  const fosc = f === 'nit' || f === 'madrugada';
+  if (t?.cel === 'tempesta' || (t && t.vent >= 45 && !fosc)) return VIDEOS.tempesta;
+  if (t?.cel === 'pluja' && !fosc) return VIDEOS.pluja;
+  if (t?.cel === 'boira' && !fosc) return VIDEOS.boira;
+  if (f === 'alba') return VIDEOS.alba;
+  if (f === 'capvespre') return VIDEOS.capvespre;
+  if (f === 'nit') return VIDEOS.nit;
+  if (f === 'madrugada') return VIDEOS.madrugada;
+  return t?.cel === 'nuvol' ? VIDEOS.nuvol : VIDEOS.dia;
+}
+
+/** Dos vídeos superposats: el nou entra amb un fos de 2,5 s sobre l'anterior. */
+function VideoMar({ src }: { src: string }) {
+  const [capes, setCapes] = useState<{ src: string; visible: boolean }[]>([{ src, visible: false }]);
+  useEffect(() => {
+    setCapes((c) => (c[c.length - 1]?.src === src ? c : [...c.slice(-1), { src, visible: false }]));
+  }, [src]);
+  return (
+    <View style={StyleSheet.absoluteFill}>
+      {capes.map((c, i) =>
+        createElement('video', {
+          key: c.src, src: c.src, autoPlay: true, muted: true, loop: true, playsInline: true, preload: 'auto',
+          'webkit-playsinline': 'true',
+          // iOS només reprodueix automàticament si l'atribut «muted» existeix de veritat a l'HTML
+          ref: (el: any) => { if (el && !el.dataset.ok) { el.dataset.ok = '1'; el.muted = true; el.setAttribute('muted', ''); el.setAttribute('playsinline', ''); el.play?.().catch(() => {}); } },
+          onLoadedData: () => setCapes((cs) => cs.map((x) => (x.src === c.src ? { ...x, visible: true } : x))),
+          style: {
+            position: 'absolute', inset: 0, width: '100%', height: '100%', objectFit: 'cover',
+            opacity: c.visible ? 1 : 0, transition: 'opacity 2.5s ease', zIndex: i,
+          },
+        }),
+      )}
+    </View>
+  );
+}
 import type { Temps } from './weather';
 
 type Fase = 'madrugada' | 'alba' | 'dia' | 'capvespre' | 'nit';
@@ -110,10 +161,11 @@ export function Sea({ temps }: { temps?: Temps }) {
           style={{ position: 'absolute', left: W * 0.2, right: W * 0.2, top: horitzo, height: H * 0.25, opacity: gris ? 0.3 : 1 }}
         />
         {ones.map((o, i) => <Ona key={i} {...o} color={p.ona} />)}
-        {temps && (temps.cel === 'pluja' || temps.cel === 'tempesta') && <Pluja forta={temps.cel === 'tempesta'} />}
       </Animated.View>
+      {Platform.OS === 'web' && <VideoMar src={triaVideo(f, temps)} />}
+      {Platform.OS !== 'web' && temps && (temps.cel === 'pluja' || temps.cel === 'tempesta') && <Pluja forta={temps.cel === 'tempesta'} />}
       {/* vel per garantir la lectura */}
-      <LinearGradient colors={['rgba(4,10,18,0.35)', 'rgba(4,10,18,0.15)', 'rgba(4,10,18,0.55)']} style={StyleSheet.absoluteFill} />
+      <LinearGradient colors={['rgba(4,10,18,0.45)', 'rgba(4,10,18,0.25)', 'rgba(4,10,18,0.6)']} style={StyleSheet.absoluteFill} />
     </View>
   );
 }
